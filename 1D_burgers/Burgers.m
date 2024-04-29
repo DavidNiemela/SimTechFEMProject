@@ -1,9 +1,15 @@
-%% Burgers eq. u_t - (eps*u_x)_x = 0
+%% Burgers eq. u_t + (0.5u^2)_x - (eps*u_x)_x = 0
 
 clear all
 close all
+%% Runs the problems A1- A3 and saves files containing what is needed for
+%  the Results.
+
+%problem A1: 1, A2: 2, A3: 3.
 prob = 1;
+% higher means fewer snapshots, it plots every *plot_freq* time-step.
 plot_freq = 2000000;
+
 if prob == 1
     xl = -1;
     xr = 1;
