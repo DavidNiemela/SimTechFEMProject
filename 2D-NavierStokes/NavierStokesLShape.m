@@ -29,8 +29,6 @@ boundaries = {leftboundary, topboundary, bottomboundary,Lboundary,rightboundary}
 
 [p,e,t] = xmlToPET('lshape_coarse.xml', boundaries);
 
-
-
 % [p,e,t] = meshToPet(model.Mesh);
 
 % pdemesh(model.Mesh); % check the mesh
