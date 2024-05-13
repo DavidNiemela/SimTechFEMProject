@@ -14,28 +14,20 @@ meshSize=0.1;
 
 
 %% READING XML meshes and constructing [p e t]
-meshstruct = readstruct('lshape_medium.xml');
-mesh = meshstruct.mesh;
-t = [vertcat(mesh.cells.triangle.v0Attribute), vertcat(mesh.cells.triangle.v1Attribute), vertcat(mesh.cells.triangle.v2Attribute)]'+1;
-
-x = vertcat(mesh.vertices.vertex.xAttribute)';
-y = vertcat(mesh.vertices.vertex.yAttribute)';
-p = [x;y];
-
 %edges FOR L SHAPE
 %left boundary
-lb = find(x==0);
+leftboundary = @(x,y) find(x==0);
 %top boundary
-tb = find(y==1);
+topboundary = @(x,y) find(y == 1);
 %bottom boundary
-bb = find(y==0);
+bottomboundary = @(x,y) find(y == 0);
 %L boundary
-rtb1 = find(y==0.5);
-rtb2 = find(x==0.5);
-rtb = intersect(rtb1,rtb2);
+Lboundary = @(x,y) find((y == 0.5 & x>=0.5) | (x == 0.5 & y >= 0.5));
 %right boundary
-rb = find(x==1);
-e = [lb,tb,bb,rtb, rb];
+rightboundary = @(x,y) find(x == 1);
+boundaries = {leftboundary, topboundary, bottomboundary,Lboundary,rightboundary};
+
+[p,e,t] = xmlToPET('lshape_coarse.xml', boundaries);
 
 
 
