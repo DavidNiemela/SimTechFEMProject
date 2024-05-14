@@ -74,7 +74,8 @@ U=zeros(np,1); % x-velocity
 V=zeros(np,1); % y-velocity
 P=zeros(np,1); % pressure
 T = 0;
-for l = 1:10
+n = 0;
+while T < 1
     % enforce no-slip BC
     % TODO: solve for pressure – is it correct?
     % (for pressure, I simply followed Alg. 29, page 319 of the textbook)
@@ -105,9 +106,10 @@ for l = 1:10
     % V=K2*V./K1 + 0.5*By*(P + Pold);
 
     T = T + dt;
-    
+    n = n+1;
     % pdeplot(p,e,t,'flowdata',[U V]),axis equal,pause(.1)
-    quiver(x',y',U,V)
-    pause(0.01)
+    if mod(n,20) == 0
+        quiver(x',y',U,V)
+        pause(0.1)
+    end
 end
-
