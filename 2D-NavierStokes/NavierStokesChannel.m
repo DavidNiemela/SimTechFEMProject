@@ -67,14 +67,14 @@ M = MassAssembler2D(p,t);
 Bx=ConvectionAssembler2D(p,t,ones(np,1),zeros(np,1));
 By=ConvectionAssembler2D(p,t,zeros(np,1),ones(np,1));
 
-dt = 0.01; % time step
+dt = 0.001; % time step
 nu = 0.01; % viscosity
 
 U=zeros(np,1); % x-velocity
 V=zeros(np,1); % y-velocity
 P=zeros(np,1); % pressure
 T = 0;
-for l = 1:100
+while T < 10
     % enforce no-slip BC
     % TODO: solve for pressure – is it correct?
     % (for pressure, I simply followed Alg. 29, page 319 of the textbook)
@@ -105,6 +105,7 @@ for l = 1:100
     % V=K2*V./K1 + 0.5*By*(P + Pold);
 
     T = T + dt;
+    
     
     % pdeplot(p,e,t,'flowdata',[U V]),axis equal,pause(.1)
     quiver(x',y',U,V)

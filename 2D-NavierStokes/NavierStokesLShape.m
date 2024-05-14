@@ -67,8 +67,10 @@ M = MassAssembler2D(p,t);
 Bx=ConvectionAssembler2D(p,t,ones(np,1),zeros(np,1));
 By=ConvectionAssembler2D(p,t,zeros(np,1),ones(np,1));
 
-dt = 0.01; % time step
-nu = 0.1; % viscosity
+nu = 0.001; % viscosity
+
+dt = 0.0001; % time step
+
 
 U=zeros(np,1); % x-velocity
 V=zeros(np,1); % y-velocity
