@@ -22,15 +22,14 @@ bottomboundary = @(x,y) find(y == 0);
 %L boundary
 Lboundary = @(x,y) find((y == 0.5 & x>=0.5) | (x == 0.5 & y >= 0.5));
 %right boundary
-rightboundary = @(x,y) find(x == 1);
+rightboundary = @(x,y) find((x == 1 & y ~= 0) & (x == 1 & y ~= 0.5));
 boundaries = {leftboundary, topboundary, bottomboundary,Lboundary,rightboundary};
 
 [p,e,t] = xmlToPET('lshape_medium.xml', boundaries);
 
 % [p,e,t] = meshToPet(model.Mesh);
 
-% pdemesh(model.Mesh); % check the mesh
-
+% pdemesh(model.Mesh); % check the m
 % TODO: for the second problem, can use Channel()
 % channel=Channel();
 % [p,e,t]=initmesh(channel,'hmax',0.25);
@@ -39,41 +38,48 @@ np=size(p,2);
 x=p(1,:); y=p(2,:);
 
 % diagonal penalty matrix to enforce zero pressure
-out=find(x==1); % nodes on outflow
-wgts=zeros(np,1); % big weights
-wgts(out)=1.e+6;
+out = rightboundary(x,y); % nodes on outflow
+wgts = zeros(np,1); % big weights
+wgts(out) = 1.e+6;
 R=spdiags(wgts,0,np,np);
 
-in = find(y == 1); % nodes on inflow
+in = topboundary(x,y); % nodes on inflow
 % bnd=unique([e(1,:) e(2,:)]); % all nodes on boundary
 bnd = e;
-bnd=setdiff(bnd,out); % remove outflow nodes
-mask=ones(np,1); % a mask to identify no-slip nodes
+bnd = setdiff(bnd, out); % remove outflow nodes
+mask = ones(np,1); % a mask to identify no-slip nodes
 Pmask = ones(np,1);
-mask(bnd)=0; % set mask for no-slip nodes to zero
+mask(bnd) = 0; % set mask for no-slip nodes to zero
 Pmask(out) = 0;
 xin=x(in); % x-coordinate of nodes on inflow
 yin=y(in); % y-coordinate of nodes on inflow
 
 % Dirichlet conditions
-g=zeros(np,1); % no-slip values
+g = zeros(np,1); % no-slip values
 g(in) = -3 * sin(2*pi * xin); % initial profile for y-velocity
+% g(setdiffbnd) = zeros(size(bnd));
 
 A1 = StiffnessAssembler2D(p,t);   % without viscocity
 A2 = VariableStiffnessAssembler2D(p,t);  % with viscocity
 M = MassAssembler2D(p,t);
 % [A,~,M] = assema(p,t,1,0,1);
-Bx=ConvectionAssembler2D(p,t,ones(np,1),zeros(np,1));
-By=ConvectionAssembler2D(p,t,zeros(np,1),ones(np,1));
+Bx = ConvectionAssembler2D(p,t,ones(np,1),zeros(np,1));
+By = ConvectionAssembler2D(p,t,zeros(np,1),ones(np,1));
 
-dt = 0.0001; % time step
+dt = 0.001; % time step
 
 
 U=zeros(np,1); % x-velocity
 V=zeros(np,1); % y-velocity
 P=zeros(np,1); % pressure
+U=U.*mask;
+V=V.*mask+g;
+C = ConvectionAssembler2D(p,t,U,V);
+P_rhs = Bx*C*U + By*C*V;
+P = ((A1+R))\(P_rhs);
 T = 0;
 n = 0;
+Pres_mat = A1+R;
 while T < 1
 
     U=U.*mask;
@@ -83,11 +89,11 @@ while T < 1
     C = ConvectionAssembler2D(p,t,U,V);
     
     % constant viscosity
-    % nu = 0.001; % viscosity
+    % nu = 0.01; % viscosity
     % LHS_matrix = M - 0.5*dt*(C + nu*A1);
     % RHS_matrix = M + 0.5*dt*(C + nu*A1);
     
-    % % viscosity based on a cell size
+    % % % % viscosity based on a cell size
     LHS_matrix = M - (0.5*dt*(C + A2));
     RHS_matrix = M + 0.5*dt*(C + A2);
 
@@ -102,9 +108,9 @@ while T < 1
 
     C = ConvectionAssembler2D(p,t,U,V);
 
-    P_rhs = Bx*C*U + By*C*V;
-    P = (A1+R)\(P_rhs);
-    P = P.*Pmask;
+    P_rhs = (Bx*(C*U) + By*(C*V));
+    P = ((Pres_mat))\(P_rhs); 
+    % P = P.*Pmask;
 
     % intermediate matrices
     % K = 0.5*dt*(C + nu*A)./M;
@@ -119,6 +125,7 @@ while T < 1
     % pdeplot(p,e,t,'flowdata',[U V]),axis equal,pause(.1)
     if mod(n,20) == 0
         quiver(x',y',U,V)
-        pause(0.1)
+        pause(0.0001)
+        % disp('asd')
     end
 end

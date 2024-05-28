@@ -60,7 +60,6 @@ yin=y(in); % y-coordinate of nodes on inflow
 % Dirichlet conditions
 g=zeros(np,1); % no-slip values
 g(in) = 4*sin(pi * yin); % initial profile for y-velocity
-a = @(x,y) 1;
 A = StiffnessAssembler2D(p,t);
 M = MassAssembler2D(p,t);
 % [A,~,M] = assema(p,t,1,0,1);
@@ -68,12 +67,20 @@ Bx=ConvectionAssembler2D(p,t,ones(np,1),zeros(np,1));
 By=ConvectionAssembler2D(p,t,zeros(np,1),ones(np,1));
 
 dt = 0.001; % time step
-nu = 0.01; % viscosity
+nu = 0.1; % viscosity
 
 U=zeros(np,1); % x-velocity
 V=zeros(np,1); % y-velocity
 P=zeros(np,1); % pressure
+U=U.*mask+g;
+V=V.*mask;
+C = ConvectionAssembler2D(p,t,U,V);
+P_rhs = -Bx*(C*U) - By*(C*V);
+P = (A+R)\(P_rhs);
+P = P.*Pmask;
+
 T = 0;
+n=0;
 while T < 10
     % enforce no-slip BC
     % TODO: solve for pressure – is it correct?
@@ -82,7 +89,7 @@ while T < 10
 
     % assemble convection matrix
     C = ConvectionAssembler2D(p,t,U,V);
-    LHS_matrix = M + (-0.5*dt*(C + nu*A));
+    LHS_matrix = M - 0.5*dt*(C + nu*A);
     RHS_matrix = M + 0.5*dt*(C + nu*A);
     LHS_U = LHS_matrix*U + Bx*P;
     LHS_V = LHS_matrix*V + By*P;
@@ -93,7 +100,11 @@ while T < 10
     U=U.*mask+g;
     V=V.*mask;
 
-    P = (A+R)\(Bx*U+By*V);
+    C = ConvectionAssembler2D(p,t,U,V);
+    P_rhs = -Bx*(C*U) - By*(C*V);
+    % P_rhs = Bx*U + By*V;
+
+    P = ((A+R))\(P_rhs);
     P = P.*Pmask;
 
     % intermediate matrices
@@ -107,8 +118,12 @@ while T < 10
     T = T + dt;
     
     
+    n = n+1;
     % pdeplot(p,e,t,'flowdata',[U V]),axis equal,pause(.1)
-    quiver(x',y',U,V)
-    pause(0.01)
+    if mod(n,20) == 0
+
+        quiver(x',y',U,V)
+        pause(0.1)        
+    end
 end
 
