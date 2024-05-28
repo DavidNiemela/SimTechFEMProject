@@ -1,7 +1,5 @@
-
 close all
 clear all
-meshSize=0.1;
 
 % model = createpde(1);
 % standard l-shape geometry is slightly different
@@ -27,7 +25,7 @@ Lboundary = @(x,y) find((y == 0.5 & x>=0.5) | (x == 0.5 & y >= 0.5));
 rightboundary = @(x,y) find(x == 1);
 boundaries = {leftboundary, topboundary, bottomboundary,Lboundary,rightboundary};
 
-[p,e,t] = xmlToPET('lshape_coarse.xml', boundaries);
+[p,e,t] = xmlToPET('lshape_medium.xml', boundaries);
 
 % [p,e,t] = meshToPet(model.Mesh);
 
@@ -60,14 +58,13 @@ yin=y(in); % y-coordinate of nodes on inflow
 % Dirichlet conditions
 g=zeros(np,1); % no-slip values
 g(in) = -3 * sin(2*pi * xin); % initial profile for y-velocity
-a = @(x,y) 1;
-A = StiffnessAssembler2D(p,t, a);
+
+A1 = StiffnessAssembler2D(p,t);   % without viscocity
+A2 = VariableStiffnessAssembler2D(p,t);  % with viscocity
 M = MassAssembler2D(p,t);
 % [A,~,M] = assema(p,t,1,0,1);
 Bx=ConvectionAssembler2D(p,t,ones(np,1),zeros(np,1));
 By=ConvectionAssembler2D(p,t,zeros(np,1),ones(np,1));
-
-nu = 0.001; % viscosity
 
 dt = 0.0001; % time step
 
@@ -78,16 +75,23 @@ P=zeros(np,1); % pressure
 T = 0;
 n = 0;
 while T < 1
-    % enforce no-slip BC
-    % TODO: solve for pressure – is it correct?
-    % (for pressure, I simply followed Alg. 29, page 319 of the textbook)
-    % Pold = P;
+
+    U=U.*mask;
+    V=V.*mask+g;
 
     % assemble convection matrix
     C = ConvectionAssembler2D(p,t,U,V);
-    LHS_matrix = M + (-0.5*dt*(C + nu*A));
-    RHS_matrix = M + 0.5*dt*(C + nu*A);
-    LHS_U = LHS_matrix*U + Bx*P;
+    
+    % constant viscosity
+    % nu = 0.001; % viscosity
+    % LHS_matrix = M - 0.5*dt*(C + nu*A1);
+    % RHS_matrix = M + 0.5*dt*(C + nu*A1);
+    
+    % % viscosity based on a cell size
+    LHS_matrix = M - (0.5*dt*(C + A2));
+    RHS_matrix = M + 0.5*dt*(C + A2);
+
+    LHS_U = LHS_matrix*U + Bx*P;    % Shouldn't we multiply Bx and By by M on the left?
     LHS_V = LHS_matrix*V + By*P;
 
     U = RHS_matrix\LHS_U;
@@ -96,7 +100,10 @@ while T < 1
     U=U.*mask;
     V=V.*mask+g;
 
-    P = (A+R)\(Bx*U+By*V);
+    C = ConvectionAssembler2D(p,t,U,V);
+
+    P_rhs = Bx*C*U + By*C*V;
+    P = (A1+R)\(P_rhs);
     P = P.*Pmask;
 
     % intermediate matrices

@@ -1,4 +1,4 @@
-function A = StiffnessAssembler2D(p,t,a)
+function A = StiffnessAssembler2D(p,t)
 np = size(p,2);
 nt = size(t,2);
 A = sparse(np,np); % allocate stiffness matrix
@@ -8,7 +8,8 @@ for K = 1:nt
     y = p(2,loc2glb); % node y-
     [area,b,c] = HatGradients(x,y);
     xc = mean(x); yc = mean(y); % element centroid
-    abar = a(xc,yc); % value of a(x,y) at centroid
+    % abar = a(xc,yc); % value of a(x,y) at centroid
+    abar = 1;
     AK = abar*(b*b'...
         +c*c')*area; % element stiffness matrix
     A(loc2glb,loc2glb) = A(loc2glb,loc2glb) ...
