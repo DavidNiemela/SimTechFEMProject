@@ -1,20 +1,7 @@
-
 close all
 clear all
-meshSize=0.1;
-
-% model = createpde(1);
-% standard l-shape geometry is slightly different
-% geometryFromEdges(model,@lshapeg);
-
-% flip, scale, and translate L-shape geometry to match the required one
-% model.Geometry = scale(model.Geometry,[-0.5 0.5]);
-% model.Geometry = translate(model.Geometry,[0.5 0.5]);
-% generateMesh(model,Hmax=meshSize,GeometricOrder='linear');
-
 
 %% READING XML meshes and constructing [p e t]
-%edges FOR L SHAPE
 %left boundary
 leftboundary = @(x,y) find(x==0);
 %top boundary
@@ -27,15 +14,9 @@ circle = @(x,y) find((x-0.5).^2 + (y-0.5).^2 < (0.1+0.001).^2);
 rightboundary = @(x,y) find(x == 3);
 boundaries = {leftboundary, topboundary, bottomboundary,circle,rightboundary};
 
-[p,e,t] = xmlToPET('cyl2d_coarse.xml', boundaries);
-
-% [p,e,t] = meshToPet(model.Mesh);
-
-% pdemesh(model.Mesh); % check the mesh
-
-% TODO: for the second problem, can use Channel()
-% channel=Channel();
-% [p,e,t]=initmesh(channel,'hmax',0.25);
+meshtype = 'medium';
+meshfile = sprintf('cyl2d_%s.xml', meshtype);
+[p,e,t] = xmlToPET(meshfile, boundaries);
 
 np=size(p,2);
 x=p(1,:); y=p(2,:);
@@ -51,79 +32,91 @@ in = leftboundary(x,y); % nodes on inflow
 bnd = e;
 bnd=setdiff(bnd,out); % remove outflow nodes
 mask=ones(np,1); % a mask to identify no-slip nodes
-Pmask = ones(np,1);
-mask(bnd)=0; % set mask for no-slip nodes to zero
-Pmask(out) = 0;
+mask(bnd) = 0; % set mask for no-slip nodes to zero
+
 xin=x(in); % x-coordinate of nodes on inflow
 yin=y(in); % y-coordinate of nodes on inflow
+
+% Pmask = ones(np,1);
+% Pmask(out) = 0;
 
 % Dirichlet conditions
 g=zeros(np,1); % no-slip values
 g(in) = 4*sin(pi * yin); % initial profile for y-velocity
-A = StiffnessAssembler2D(p,t);
+
+A1 = StiffnessAssembler2D(p,t);   % without viscocity
+A2 = VariableStiffnessAssembler2D(p,t);  % with viscocity
 M = MassAssembler2D(p,t);
-% [A,~,M] = assema(p,t,1,0,1);
 Bx=ConvectionAssembler2D(p,t,ones(np,1),zeros(np,1));
 By=ConvectionAssembler2D(p,t,zeros(np,1),ones(np,1));
 
-dt = 0.001; % time step
-nu = 0.1; % viscosity
-
 U=zeros(np,1); % x-velocity
 V=zeros(np,1); % y-velocity
-P=zeros(np,1); % pressure
 U=U.*mask+g;
 V=V.*mask;
+
 C = ConvectionAssembler2D(p,t,U,V);
-P_rhs = -Bx*(C*U) - By*(C*V);
-P = (A+R)\(P_rhs);
-P = P.*Pmask;
+P_rhs = Bx*(C*U) + By*(C*V);
+P = (A1+R)\(P_rhs);
+% P = P.*Pmask;
 
+dt = 0.001; % time step
+Tfull = 1;
 T = 0;
-n=0;
-while T < 10
-    % enforce no-slip BC
-    % TODO: solve for pressure – is it correct?
-    % (for pressure, I simply followed Alg. 29, page 319 of the textbook)
-    % Pold = P;
-
+n = 0;
+diviser = fix((Tfull / dt) / 60);
+% circle_edge = circle(x,y);
+while T < Tfull
     % assemble convection matrix
     C = ConvectionAssembler2D(p,t,U,V);
-    LHS_matrix = M - 0.5*dt*(C + nu*A);
-    RHS_matrix = M + 0.5*dt*(C + nu*A);
+    
+    % constant viscosity
+    nu = 0.1;
+    LHS_matrix = M - 0.5*dt*(C + nu*A1);
+    RHS_matrix = M + 0.5*dt*(C + nu*A1);
+    
+    % viscosity based on a cell size
+    % LHS_matrix = M - (0.5*dt*(C + A2));
+    % RHS_matrix = M + 0.5*dt*(C + A2);
+
     LHS_U = LHS_matrix*U + Bx*P;
     LHS_V = LHS_matrix*V + By*P;
 
     U = RHS_matrix\LHS_U;
     V = RHS_matrix\LHS_V;
-    %
+
     U=U.*mask+g;
     V=V.*mask;
 
     C = ConvectionAssembler2D(p,t,U,V);
-    P_rhs = -Bx*(C*U) - By*(C*V);
-    % P_rhs = Bx*U + By*V;
 
-    P = ((A+R))\(P_rhs);
-    P = P.*Pmask;
-
-    % intermediate matrices
-    % K = 0.5*dt*(C + nu*A)./M;
-    % K1 = eye(np) + K;
-    % K2 = eye(np) - K;
-    % update velocity
-    % U=K2*U./K1 + 0.5*Bx*(P + Pold);
-    % V=K2*V./K1 + 0.5*By*(P + Pold);
+    P_rhs = Bx*(C*U) + By*(C*V);
+    P = (A1+R)\P_rhs;
+    % P = P.*Pmask;
 
     T = T + dt;
-    
-    
-    n = n+1;
-    % pdeplot(p,e,t,'flowdata',[U V]),axis equal,pause(.1)
-    if mod(n,20) == 0
+    n = n + 1;
 
+    xlim([0 3])
+    ylim([0 1])
+
+    if mod(n,diviser) == 0
+        % velocity arrows
         quiver(x',y',U,V)
-        pause(0.1)        
+        hold on
+        % scatter(x(circle_edge), y(circle_edge), 'r')
+        viscircles([0.5,0.5],0.1,'Color','k');
+        rectangle('Position',[0 0 3 1])
+        pause(0.1)
+
+        title(sprintf('Velocity | mesh: %s | visc: %0.3f', meshtype, nu), 'FontSize', 10);
+        text(2.5, 0.8, sprintf('time: %0.2f', T));
+        daspect([1 1 1])
+        
+        fname = sprintf('plots/Channel/%s/U/%d.png', meshtype, n);
+        % saveas(gcf, fname, 'png','Resolution',300);
+        exportgraphics(gcf,fname,'Resolution',300)
+        hold off
     end
 end
 
