@@ -60,24 +60,41 @@ P_rhs = Bx*(C*U) + By*(C*V);
 P = (A1+R)\(P_rhs);
 % P = P.*Pmask;
 
-dt = 0.001; % time step
+%% Specify viscosity (0 for mesh dependent)
+nu = 0.01;
+
+%% Create folders for plots
+folder = sprintf('plots/Channel/%s/nu_%0.3f', meshtype, nu);
+if ~exist(folder, 'dir')
+    mkdir(folder)
+end
+plots = {'U', 'Uabs', 'P'};
+for i = 1:length(plots)
+    varFolder = strcat(folder,sprintf('/%s', plots{i}));
+    if ~exist(varFolder, 'dir')
+        mkdir(varFolder)
+    end
+end
+
+%% Time steps
+dt = 0.01; % time step
 Tfull = 1;
 T = 0;
 n = 0;
 diviser = fix((Tfull / dt) / 60);
-% circle_edge = circle(x,y);
 while T < Tfull
     % assemble convection matrix
     C = ConvectionAssembler2D(p,t,U,V);
     
-    % constant viscosity
-    nu = 0.1;
-    LHS_matrix = M - 0.5*dt*(C + nu*A1);
-    RHS_matrix = M + 0.5*dt*(C + nu*A1);
-    
-    % viscosity based on a cell size
-    % LHS_matrix = M - (0.5*dt*(C + A2));
-    % RHS_matrix = M + 0.5*dt*(C + A2);
+    if nu > 0
+        % constant viscosity
+        LHS_matrix = M - 0.5*dt*(C + nu*A1);
+        RHS_matrix = M + 0.5*dt*(C + nu*A1);
+    else
+        % viscosity based on a cell size
+        LHS_matrix = M - (0.5*dt*(C + A2));
+        RHS_matrix = M + 0.5*dt*(C + A2);
+    end
 
     LHS_U = LHS_matrix*U + Bx*P;
     LHS_V = LHS_matrix*V + By*P;
@@ -97,26 +114,10 @@ while T < Tfull
     T = T + dt;
     n = n + 1;
 
-    xlim([0 3])
-    ylim([0 1])
-
     if mod(n,diviser) == 0
-        % velocity arrows
-        quiver(x',y',U,V)
-        hold on
-        % scatter(x(circle_edge), y(circle_edge), 'r')
-        viscircles([0.5,0.5],0.1,'Color','k');
-        rectangle('Position',[0 0 3 1])
-        pause(0.1)
-
-        title(sprintf('Velocity | mesh: %s | visc: %0.3f', meshtype, nu), 'FontSize', 10);
-        text(2.5, 0.8, sprintf('time: %0.2f', T));
-        daspect([1 1 1])
-        
-        fname = sprintf('plots/Channel/%s/U/%d.png', meshtype, n);
-        % saveas(gcf, fname, 'png','Resolution',300);
-        exportgraphics(gcf,fname,'Resolution',300)
-        hold off
+        plotVelocityInChannel(x,y,U,V,meshtype,nu,T);
+        plotAbsVelocityInChannel(p,t,U,V,meshtype,nu,T);
+        plotPressureInChannel(p,t,P,meshtype,nu,T);
     end
 end
 
